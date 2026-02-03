@@ -79,27 +79,67 @@ hourly.rename(columns={'order_placed_at_utc': 'order_count'}, inplace=True)
 
 
 
+# Prepare Labels and the Red-to-Green Gradient
+days_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+# Generate 7 colors from the RdYlGn colormap (0.0 is Red, 1.0 is Green)
+colors_gradient = [plt.cm.RdYlGn(i/6) for i in range(7)]
 
-# Explore how different precipitation thresholds affect orders amount
+# Total Orders per Weekday
+weekday_totals = hourly.groupby('day_of_week')['order_count'].sum().reset_index()
 
-# Define precipitation thresholds
-precip_thresholds = [0, 0.1, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+plt.figure(figsize=(10, 6))
+plt.bar(days_names, [weekday_totals.loc[weekday_totals['day_of_week'] == i, 'order_count'].values[0] for i in range(7)],
+        color=colors_gradient)
 
-# Use a colormap from light to dark
-colors = plt.cm.coolwarm(np.linspace(0, 1, len(precip_thresholds)))
-
-plt.figure(figsize=(10,6))
-
-for p, c in zip(precip_thresholds, colors):
-    filtered = hourly[hourly['precipitation'] > p].groupby('hour')['order_count'].mean().reset_index()
-    plt.plot(filtered['hour'], filtered['order_count'], label=f'precip > {p}', color=c)
-
-plt.xlabel('Hour of Day')
-plt.ylabel('Average Orders')
-plt.title('Hourly Average Orders by Precipitation Level')
-plt.legend()
-plt.grid(True)
+plt.title('Total Order Count (Monday to Sunday Gradient)', fontsize=14)
+plt.xlabel('Day of the Week')
+plt.ylabel('Total Orders')
+plt.grid(axis='y', linestyle='--', alpha=0.3)
 plt.show()
+
+# Hourly Patterns by Weekday
+avg_hourly_weekday = hourly.groupby(['day_of_week', 'hour'])['order_count'].mean().reset_index()
+
+plt.figure(figsize=(12, 7))
+for i, day in enumerate(days_names):
+    day_subset = avg_hourly_weekday[avg_hourly_weekday['day_of_week'] == i]
+    plt.plot(day_subset['hour'], day_subset['order_count'],
+             label=day, color=colors_gradient[i], linewidth=2.5)
+
+plt.title('Average Hourly Order Trends (Red to Green)', fontsize=14)
+plt.xlabel('Hour of Day (UTC)')
+plt.ylabel('Average Order Count')
+plt.xticks(range(24))
+plt.legend(title='Weekday', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.grid(True, linestyle=':', alpha=0.5)
+plt.tight_layout()
+plt.show()
+
+
+
+
+
+
+# # Explore how different precipitation thresholds affect orders amount
+
+# # Define precipitation thresholds
+# precip_thresholds = [0, 0.1, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+
+# # Use a colormap from light to dark
+# colors = plt.cm.coolwarm(np.linspace(0, 1, len(precip_thresholds)))
+
+# plt.figure(figsize=(10,6))
+
+# for p, c in zip(precip_thresholds, colors):
+#     filtered = hourly[hourly['precipitation'] > p].groupby('hour')['order_count'].mean().reset_index()
+#     plt.plot(filtered['hour'], filtered['order_count'], label=f'precip > {p}', color=c)
+
+# plt.xlabel('Hour of Day')
+# plt.ylabel('Average Orders')
+# plt.title('Hourly Average Orders by Precipitation Level')
+# plt.legend()
+# plt.grid(True)
+# plt.show()
 
 
 
@@ -185,35 +225,35 @@ plt.show()
 
 
 
-# Check if poisson regression is suitable
+# # Check if poisson regression is suitable
 
-from scipy import stats
+# from scipy import stats
 
-# Check ratio for each group separately
-groups = {
-    'Weekday': hourly[hourly['is_weekend'] == 0],
-    'Weekend': hourly[hourly['is_weekend'] == 1]
-}
+# # Check ratio for each group separately
+# groups = {
+#     'Weekday': hourly[hourly['is_weekend'] == 0],
+#     'Weekend': hourly[hourly['is_weekend'] == 1]
+# }
 
-print("Variance/Mean ratio by group:")
-print("-" * 45)
-for name, group in groups.items():
-    mean = group['order_count'].mean()
-    var = group['order_count'].var()
-    ratio = var / mean
-    print(f"{name:<12} Mean: {mean:<8.2f} Var: {var:<10.2f} Ratio: {ratio:.2f}")
+# print("Variance/Mean ratio by group:")
+# print("-" * 45)
+# for name, group in groups.items():
+#     mean = group['order_count'].mean()
+#     var = group['order_count'].var()
+#     ratio = var / mean
+#     print(f"{name:<12} Mean: {mean:<8.2f} Var: {var:<10.2f} Ratio: {ratio:.2f}")
 
-# Even more detailed - check per hour per day type
-print("\n\nRatio per hour:")
-print("-" * 55)
-print(f"{'Hour':<6} {'Weekday Ratio':<18} {'Weekend Ratio':<18}")
-print("-" * 55)
+# # Even more detailed - check per hour per day type
+# print("\n\nRatio per hour:")
+# print("-" * 55)
+# print(f"{'Hour':<6} {'Weekday Ratio':<18} {'Weekend Ratio':<18}")
+# print("-" * 55)
 
-for hour in range(24):
-    wd = hourly[(hourly['hour'] == hour) & (hourly['is_weekend'] == 0)]['order_count']
-    we = hourly[(hourly['hour'] == hour) & (hourly['is_weekend'] == 1)]['order_count']
+# for hour in range(24):
+#     wd = hourly[(hourly['hour'] == hour) & (hourly['is_weekend'] == 0)]['order_count']
+#     we = hourly[(hourly['hour'] == hour) & (hourly['is_weekend'] == 1)]['order_count']
 
-    wd_ratio = wd.var() / wd.mean() if wd.mean() > 0 else 0
-    we_ratio = we.var() / we.mean() if we.mean() > 0 else 0
+#     wd_ratio = wd.var() / wd.mean() if wd.mean() > 0 else 0
+#     we_ratio = we.var() / we.mean() if we.mean() > 0 else 0
 
-    print(f"{hour:<6} {wd_ratio:<18.2f} {we_ratio:<18.2f}")
+#     print(f"{hour:<6} {wd_ratio:<18.2f} {we_ratio:<18.2f}")

@@ -1,5 +1,6 @@
 from sklearn.linear_model import PoissonRegressor, Ridge
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.dummy import DummyRegressor
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from sklearn.model_selection import train_test_split
 import numpy as np
@@ -31,27 +32,34 @@ hourly.rename(columns={'order_placed_at_utc': 'order_count'}, inplace=True)
 # Sort by date and hour
 hourly_sorted = hourly.sort_values(['date', 'hour']).reset_index(drop=True)
 
+# Filter to only hours from 7 to 20
+hourly_filtered = hourly_sorted[(hourly_sorted['hour'] >= 7) & (hourly_sorted['hour'] <= 20)].reset_index(drop=True)
+
 # Remove NaNs
-hourly_sorted = hourly_sorted.dropna(subset=['hour', 'day_of_week', 'is_weekend', 'precipitation', 'order_count']).reset_index(drop=True)
+hourly_filtered = hourly_filtered.dropna(subset=['hour', 'day_of_week', 'is_weekend', 'precipitation', 'order_count']).reset_index(drop=True)
 
-# Split into weekdays and weekends
-weekdays = hourly_sorted[hourly_sorted['is_weekend'] == 0]
-weekends = hourly_sorted[hourly_sorted['is_weekend'] == 1]
+# One-hot encode categorical features: hour and day_of_week
+hourly_filtered = pd.get_dummies(hourly_filtered, columns=['hour', 'day_of_week'], drop_first=True, dtype=int)
 
-# Features (dropping 'is_weekend' since constant in each subset; using continuous precipitation)
-features = ['hour', 'day_of_week', 'precipitation']
+# Split into weekdays and weekends (is_weekend is still available)
+weekdays = hourly_filtered[hourly_filtered['is_weekend'] == 0]
+weekends = hourly_filtered[hourly_filtered['is_weekend'] == 1]
 
-# Function to train and evaluate models (updated to include test eval)
+# Updated features: now includes one-hot columns, drops originals and is_weekend
+features = [col for col in hourly_filtered.columns if col.startswith(('hour_', 'day_of_week_')) or col == 'precipitation']
+
+# Function to train and evaluate models
 def train_evaluate(X, y, group_name):
     if len(X) == 0:
         print(f"No data for {group_name}")
         return
 
     # Random split: 70% train, then split remaining 30% into 15% val + 15% test
-    X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.3, random_state=41, shuffle=True)
-    X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=41, shuffle=True)
+    X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.3, random_state=4, shuffle=True)
+    X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=4, shuffle=True)
 
-    print(f"{group_name} - Train: {len(X_train)}, Validation: {len(X_val)}, Test: {len(X_test)}")
+    # print(f"{group_name} - Train: {len(X_train)}, Validation: {len(X_val)}, Test: {len(X_test)}")
+    # print(f"Features used ({len(features)} total): {features}")
 
     # Print stats to verify randomness/balance
     print(f"\n{group_name} Split Stats:")
@@ -62,12 +70,13 @@ def train_evaluate(X, y, group_name):
         std_orders = split_y.std()
         print(f"{split_name}: Mean Precip {mean_precip:.2f} (std {std_precip:.2f}), Mean Orders {mean_orders:.2f} (std {std_orders:.2f})")
 
-    # Train models
+    # Train models (added Dummy as baseline)
     models = {
+        "Dummy (Mean)": DummyRegressor(strategy='mean'),  # Baseline model
         "Poisson": PoissonRegressor(max_iter=200),
         "Ridge": Ridge(),
-        "Random Forest": RandomForestRegressor(n_estimators=100, random_state=42),
-        "Gradient Boosting": GradientBoostingRegressor(n_estimators=100, random_state=42)
+        "Random Forest": RandomForestRegressor(n_estimators=100, random_state=4),
+        "Gradient Boosting": GradientBoostingRegressor(n_estimators=100, random_state=4)
     }
 
     for name, model in models.items():
@@ -92,7 +101,7 @@ def train_evaluate(X, y, group_name):
         val_results[name] = rmse
         print(f"{name:<25} {rmse:<10.2f} {mae:<10.2f} {mape:<10.2f} {neg}")
 
-    # Select best model based on val RMSE (for demo; you could choose manually)
+    # Select best model based on val RMSE
     best_model_name = min(val_results, key=val_results.get)
     print(f"\nBest model on validation for {group_name}: {best_model_name}")
 
