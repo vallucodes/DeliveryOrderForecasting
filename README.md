@@ -296,4 +296,6 @@ pip install matplotlib
 
 pip install scikit-learn
 pip install statsmodels
+pip intsall xgboost
+pip install lightgbm
 pip install pandas

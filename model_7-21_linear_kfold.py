@@ -1,10 +1,10 @@
 from sklearn.linear_model import PoissonRegressor, Ridge, LinearRegression
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.dummy import DummyRegressor
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from sklearn.model_selection import train_test_split, cross_val_score, KFold
 import numpy as np
 import pandas as pd
+
 
 # Load the data
 df = pd.read_csv('orders_spring_2022.csv')
@@ -12,7 +12,7 @@ df = pd.read_csv('orders_spring_2022.csv')
 # Convert the timestamp string to datetime
 df['order_placed_at_utc'] = pd.to_datetime(df['order_placed_at_utc'])
 
-# Extract time and precipitation features
+# Extract date and time into own columns
 df['date'] = df['order_placed_at_utc'].dt.date
 df['hour'] = df['order_placed_at_utc'].dt.hour
 df['day_of_week'] = df['order_placed_at_utc'].dt.dayofweek  # 0 = Monday, 6 = Sunday
@@ -26,6 +26,7 @@ hourly = df.groupby(['date', 'hour']).agg({
     'is_weekend': 'first',  # Weekend flag
 }).reset_index()
 
+
 # Rename the count column
 hourly.rename(columns={'order_placed_at_utc': 'order_count'}, inplace=True)
 
@@ -33,7 +34,7 @@ hourly.rename(columns={'order_placed_at_utc': 'order_count'}, inplace=True)
 hourly_sorted = hourly.sort_values(['date', 'hour']).reset_index(drop=True)
 
 # Filter to only hours from 7 to 20
-hourly_filtered = hourly_sorted[(hourly_sorted['hour'] >= 7) & (hourly_sorted['hour'] <= 20)].reset_index(drop=True)
+hourly_filtered = hourly_sorted[(hourly_sorted['hour'] >= 7) & (hourly_sorted['hour'] <= 21)].reset_index(drop=True)
 
 # Remove NaNs
 hourly_filtered = hourly_filtered.dropna(subset=['hour', 'day_of_week', 'precipitation', 'order_count']).reset_index(drop=True)
@@ -54,27 +55,33 @@ def train_evaluate(X, y, group_name):
         print(f"No data for {group_name}")
         return
 
-    # 1. SPLIT DATA FIRST (Before CV)
-    # Random split: 70% train, then split remaining 30% into 15% val + 15% test
-    X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.3, shuffle=True, random_state=42)
-    X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, shuffle=True, random_state=42)
+    # Split data
+    # Random split: 80% train, 20% test
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=True, random_state=42)
+
+    # Print stats to verify randomness/balance
+    print(f"\n{group_name} Split Stats:")
+    for split_name, split_X, split_y in [("Train", X_train, y_train), ("Test", X_test, y_test)]:
+        mean_precip = split_X['precipitation'].mean()
+        std_precip = split_X['precipitation'].std()
+        mean_orders = split_y.mean()
+        std_orders = split_y.std()
+        print(f"{split_name}: Mean Precip {mean_precip:.2f} (std {std_precip:.2f}), Mean Orders {mean_orders:.2f} (std {std_orders:.2f})")
 
     print(f"\n{group_name} Split Stats:")
-    print(f"Train: {len(X_train)} | Val: {len(X_val)} | Test: {len(X_test)}")
+    print(f"Train: {len(X_train)} | Test: {len(X_test)}")
 
     # 5-fold cross validation
-    kf = KFold(n_splits=30, shuffle=True, random_state=42)
+    kf = KFold(n_splits=15, shuffle=True, random_state=42)
 
     models = {
         "Dummy (Mean)": DummyRegressor(strategy='mean'),
         "Linear Regression": LinearRegression(),
         "Poisson": PoissonRegressor(max_iter=200),
         "Ridge": Ridge(),
-        "Random Forest": RandomForestRegressor(n_estimators=100, random_state=4),
-        "Gradient Boosting": GradientBoostingRegressor(n_estimators=100, random_state=4)
     }
 
-    print(f"\n--- {group_name} Cross-Validation (on Train set only) ---")
+    print(f"\n--- {group_name} Cross-Validation ---")
     print(f"{'Model':<25} {'Mean RMSE':<12} {'Std RMSE':<12}")
     print("-" * 50)
 
@@ -88,7 +95,7 @@ def train_evaluate(X, y, group_name):
         rmse_scores = -scores
         print(f"{name:<25} {rmse_scores.mean():<12.2f} {rmse_scores.std():<12.2f}")
 
-        # 3. FIX: EXPLICITLY FIT THE MODEL
+        # 3. EXPLICITLY FIT THE MODEL
         # cross_val_score didn't fit the model instance, so we must do it here
         model.fit(X_train, y_train)
         fitted_models[name] = model
@@ -102,25 +109,9 @@ def train_evaluate(X, y, group_name):
         mape = np.mean(np.abs((y_true - preds) / (y_true + 1e-10))) * 100
         return rmse, mae, neg, mape
 
-    # 4. VALIDATION RESULTS
-    print(f"\n--- {group_name} Validation Results ---")
-    print(f"{'Model':<25} {'RMSE':<10} {'MAE':<10} {'MAPE':<10} {'NegPreds'}")
-    print("-" * 75)
-
-    val_results = {}
-    for name, model in fitted_models.items():
-        preds = model.predict(X_val)
-        rmse, mae, neg, mape = get_metrics(preds, y_val)
-        val_results[name] = rmse
-        print(f"{name:<25} {rmse:<10.2f} {mae:<10.2f} {mape:<10.2f} {neg}")
-
-    # Select best model based on val RMSE
-    best_model_name = min(val_results, key=val_results.get)
-    print(f"\nBest model on validation for {group_name}: {best_model_name}")
-
-    # 5. TEST RESULTS
-    print(f"\n--- {group_name} Test Results (Final Check) ---")
-    print(f"{'Model':<25} {'RMSE':<10} {'MAE':<10} {'MAPE':<10} {'NegPreds'}")
+    # Test results
+    print(f"\n--- {group_name} Test Results on Unseen Values ---")
+    print(f"{'Model':<25} {'RMSE':<10} {'MAE':<10} {'MAPE':<10} {'Negative Preds'}")
     print("-" * 75)
 
     for name, model in fitted_models.items():
