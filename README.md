@@ -288,7 +288,8 @@ I chose for the simplicity trading possibly some accuracy and trading limitation
 
 # If you used AI tools during the application process, or when preparing the assignment, explain how and for what parts of the process?*
 
-I used AI to help me with syntax of pandas and matplotlib. For faster data exploration. Used AI to suggest me improvements to the data preprocessing, for example use-one hot encoding for hours for ridge and poisson models.
+I used AI to help me with syntax of pandas and matplotlib. For faster data exploration. Used AI to suggest me improvements to the data preprocessing for each model. Used AI to learn about different models, what they are doing under the hood. Used AI to help with data processing in various steps.
+
 
 
 
