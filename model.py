@@ -1,116 +1,84 @@
-from sklearn.linear_model import PoissonRegressor, Ridge
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
-from sklearn.metrics import mean_squared_error, mean_absolute_error
-from sklearn.model_selection import train_test_split
-import numpy as np
 import pandas as pd
+import numpy as np
+from pygam import LinearGAM, s, te
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error, mean_absolute_error
 
-# Load the data
+# Load and prepare data
 df = pd.read_csv('orders_spring_2022.csv')
-
-# Convert the timestamp string to datetime
 df['order_placed_at_utc'] = pd.to_datetime(df['order_placed_at_utc'])
-
-# Extract time and precipitation features
 df['date'] = df['order_placed_at_utc'].dt.date
 df['hour'] = df['order_placed_at_utc'].dt.hour
-df['day_of_week'] = df['order_placed_at_utc'].dt.dayofweek  # 0 = Monday, 6 = Sunday
-df['is_weekend'] = df['day_of_week'].isin([5, 6]).astype(int)  # Saturday, Sunday
+df['day_of_week'] = df['order_placed_at_utc'].dt.dayofweek
+df['is_weekend'] = df['day_of_week'].isin([5, 6]).astype(int)
 
-# Group data together for each hour
+# Group by hour
 hourly = df.groupby(['date', 'hour']).agg({
-    'order_placed_at_utc': 'count',  # This counts orders per hour
-    'precipitation': 'first',  # Assuming same precipitation for the whole hour
-    'day_of_week': 'first',  # Keep day of week
-    'is_weekend': 'first',  # Weekend flag
+    'order_placed_at_utc': 'count',
+    'precipitation': 'first',
+    'day_of_week': 'first',
+    'is_weekend': 'first',
 }).reset_index()
-
-# Rename the count column
 hourly.rename(columns={'order_placed_at_utc': 'order_count'}, inplace=True)
-
-# Sort by date and hour
 hourly_sorted = hourly.sort_values(['date', 'hour']).reset_index(drop=True)
-
-# Remove NaNs
-hourly_sorted = hourly_sorted.dropna(subset=['hour', 'day_of_week', 'is_weekend', 'precipitation', 'order_count']).reset_index(drop=True)
+hourly_filtered = hourly_sorted[(hourly_sorted['hour'] >= 7) & (hourly_sorted['hour'] <= 21)].reset_index(drop=True)
+hourly_filtered = hourly_filtered.dropna(subset=['hour', 'day_of_week', 'precipitation', 'order_count']).reset_index(drop=True)
 
 # Split into weekdays and weekends
-weekdays = hourly_sorted[hourly_sorted['is_weekend'] == 0]
-weekends = hourly_sorted[hourly_sorted['is_weekend'] == 1]
+weekdays = hourly_filtered[hourly_filtered['is_weekend'] == 0].copy()
+weekends = hourly_filtered[hourly_filtered['is_weekend'] == 1].copy()
 
-# Features (dropping 'is_weekend' since constant in each subset; using continuous precipitation)
-features = ['hour', 'day_of_week', 'precipitation']
+def prepare_features(df, features_list):
+    X = df[features_list].values  # Convert to numpy array for GAM
+    return X
 
-# Function to train and evaluate models (updated to include test eval)
-def train_evaluate(X, y, group_name):
-    if len(X) == 0:
-        print(f"No data for {group_name}")
-        return
+def train_model(X, y):
+    model = LinearGAM(
+        s(0, n_splines=10) +      # Smooth function for hour
+        s(1, n_splines=5) +       # Smooth function for day_of_week
+        s(2, n_splines=5) +       # Smooth function for precipitation
+        te(0, 1)                  # Interaction between hour and day_of_week
+    )
+    model.fit(X, y)
+    return model
 
-    # Random split: 70% train, then split remaining 30% into 15% val + 15% test
-    X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.3, random_state=41, shuffle=True)
-    X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=41, shuffle=True)
+def evaluate_model(model, X_test, y_test, group_name):
+    preds = model.predict(X_test)
 
-    print(f"{group_name} - Train: {len(X_train)}, Validation: {len(X_val)}, Test: {len(X_test)}")
+    rmse = np.sqrt(mean_squared_error(y_test, preds))
+    mae = mean_absolute_error(y_test, preds)
+    mape = np.mean(np.abs((y_test - preds) / (y_test + 1e-10))) * 100
 
-    # Print stats to verify randomness/balance
-    print(f"\n{group_name} Split Stats:")
-    for split_name, split_X, split_y in [("Train", X_train, y_train), ("Val", X_val, y_val), ("Test", X_test, y_test)]:
-        mean_precip = split_X['precipitation'].mean()
-        std_precip = split_X['precipitation'].std()
-        mean_orders = split_y.mean()
-        std_orders = split_y.std()
-        print(f"{split_name}: Mean Precip {mean_precip:.2f} (std {std_precip:.2f}), Mean Orders {mean_orders:.2f} (std {std_orders:.2f})")
+    print(f"\n{'='*30}\n{group_name} - Evaluation\n{'='*30}")
+    print(f"RMSE: {rmse:.2f}")
+    print(f"MAE: {mae:.2f}")
+    print(f"MAPE: {mape:.2f}%")
 
-    # Train models
-    models = {
-        "Poisson": PoissonRegressor(max_iter=200),
-        "Ridge": Ridge(),
-        "Random Forest": RandomForestRegressor(n_estimators=100, random_state=42),
-        "Gradient Boosting": GradientBoostingRegressor(n_estimators=100, random_state=42)
-    }
+    return {"rmse": rmse, "mae": mae, "mape": mape}
 
-    for name, model in models.items():
-        model.fit(X_train, y_train)
+def run_pipeline(data, group_label):
+    if len(data) == 0:
+        return None
 
-    # Helper to get metrics
-    def get_metrics(preds, y_true):
-        rmse = np.sqrt(mean_squared_error(y_true, preds))
-        mae = mean_absolute_error(y_true, preds)
-        neg = (preds < 0).sum()
-        mape = np.mean(np.abs((y_true - preds) / (y_true + 1e-10))) * 100
-        return rmse, mae, neg, mape
+    # 1. Split Data
+    X = data[['hour', 'day_of_week', 'precipitation']]
+    y = data['order_count']
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, shuffle=True, random_state=999
+    )
 
-    # Validation results (for model comparison)
-    print(f"\n--- {group_name} Validation Results ---")
-    print(f"{'Model':<25} {'RMSE':<10} {'MAE':<10} {'MAPE':<10} {'Negative Preds'}")
-    print("-" * 75)
-    val_results = {}
-    for name, model in models.items():
-        preds = model.predict(X_val)
-        rmse, mae, neg, mape = get_metrics(preds, y_val)
-        val_results[name] = rmse
-        print(f"{name:<25} {rmse:<10.2f} {mae:<10.2f} {mape:<10.2f} {neg}")
+    # 2. Prepare Features (no encoding for GAM)
+    X_train = prepare_features(X_train, ['hour', 'day_of_week', 'precipitation'])
+    X_test = prepare_features(X_test, ['hour', 'day_of_week', 'precipitation'])
 
-    # Select best model based on val RMSE (for demo; you could choose manually)
-    best_model_name = min(val_results, key=val_results.get)
-    print(f"\nBest model on validation for {group_name}: {best_model_name}")
+    # 3. Train GAM
+    model = train_model(X_train, y_train)
 
-    # Test results (final unbiased evaluation for all models)
-    print(f"\n--- {group_name} Test Results ---")
-    print(f"{'Model':<25} {'RMSE':<10} {'MAE':<10} {'MAPE':<10} {'Negative Preds'}")
-    print("-" * 75)
-    for name, model in models.items():
-        preds = model.predict(X_test)
-        rmse, mae, neg, mape = get_metrics(preds, y_test)
-        print(f"{name:<25} {rmse:<10.2f} {mae:<10.2f} {mape:<10.2f} {neg}")
+    # 4. Evaluate
+    evaluate_model(model, X_test, y_test, group_label)
 
-# For weekdays
-X_weekdays = weekdays[features]
-y_weekdays = weekdays['order_count']
-train_evaluate(X_weekdays, y_weekdays, "Weekdays")
+    return model
 
-# For weekends
-X_weekends = weekends[features]
-y_weekends = weekends['order_count']
-train_evaluate(X_weekends, y_weekends, "Weekends")
+# Execute
+weekday_model = run_pipeline(weekdays, "Weekdays")
+weekend_model = run_pipeline(weekends, "Weekends")

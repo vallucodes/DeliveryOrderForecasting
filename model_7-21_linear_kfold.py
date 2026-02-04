@@ -77,8 +77,8 @@ def train_evaluate(X, y, group_name):
     models = {
         "Dummy (Mean)": DummyRegressor(strategy='mean'),
         "Linear Regression": LinearRegression(),
-        "Poisson": PoissonRegressor(max_iter=200),
-        "Ridge": Ridge(),
+        # "Poisson": PoissonRegressor(max_iter=200),
+        # "Ridge": Ridge(),
     }
 
     print(f"\n--- {group_name} Cross-Validation ---")
