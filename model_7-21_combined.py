@@ -34,7 +34,6 @@ weekdays = hourly_filtered[hourly_filtered['is_weekend'] == 0].copy()
 weekends = hourly_filtered[hourly_filtered['is_weekend'] == 1].copy()
 
 def get_models(xgb_params):
-    """Define models with their fit/predict interfaces."""
     return {
         "Dummy (Mean)": DummyRegressor(strategy='mean'),
         "Linear Regression": LinearRegression(),
@@ -45,7 +44,6 @@ def get_models(xgb_params):
     }
 
 def prepare_features(X, for_linear=False, reference_columns=None):
-    """Prepare features: tree/GAM use raw, linear uses one-hot. Optionally reindex to match reference."""
     if for_linear:
         X_prep = pd.get_dummies(X, columns=['hour', 'day_of_week'], drop_first=True, dtype=int)
         if reference_columns is not None:
@@ -54,7 +52,6 @@ def prepare_features(X, for_linear=False, reference_columns=None):
     return X[['hour', 'day_of_week', 'precipitation']].values
 
 def train_eval_single_split(models, X_train_tree, X_val_tree, X_train_lin, X_val_lin, y_train, y_val):
-    """Train and eval all models on one split."""
     results = {}
     for name, model in models.items():
         if name == "Linear Regression":
@@ -69,7 +66,6 @@ def train_eval_single_split(models, X_train_tree, X_val_tree, X_train_lin, X_val
     return results
 
 def summarize_cv(results):
-    """Compute mean/std/CI from CV results."""
     summary = {}
     for name in results:
         rmses = [r['rmse'] for r in results[name]]
@@ -81,7 +77,6 @@ def summarize_cv(results):
     return summary
 
 def final_eval(models, X_dev_tree, X_final_tree, X_dev_lin, X_final_lin, y_dev, y_final):
-    """Train on full dev, eval on final test."""
     final_results = {}
     for name, model in models.items():
         if name == "Linear Regression":
@@ -96,7 +91,7 @@ def final_eval(models, X_dev_tree, X_final_tree, X_dev_lin, X_final_lin, y_dev, 
         final_results[name] = {'rmse': rmse, 'mae': mae, 'mape': mape}
     return final_results
 
-def train_evaluate_all_models(X, y, group_name, n_seeds=30):
+def run_pipeline(X, y, group_name, n_seeds=30):
     if len(X) == 0:
         print(f"No data for {group_name}")
         return
@@ -118,23 +113,22 @@ def train_evaluate_all_models(X, y, group_name, n_seeds=30):
     X_dev_tree = prepare_features(X_dev)
     X_dev_lin = prepare_features(X_dev, for_linear=True)
     X_final_tree = prepare_features(X_final)
-    X_final_lin = prepare_features(X_final, for_linear=True, reference_columns=X_dev_lin.columns)  # Added reference_columns to reindex
+    X_final_lin = prepare_features(X_final, for_linear=True, reference_columns=X_dev_lin.columns)
 
     # Step 2: MCCV on dev set
     print(f"\n{'='*80}\n{group_name} - Cross-validation with {n_seeds} splits\n{'='*80}")
     cv_results = {name: [] for name in models}
-    cv_rmses = {name: [] for name in models}  # For stats tests
+    cv_rmses = {name: [] for name in models}
     for seed in range(n_seeds):
         # Split dev into train/val
-        X_tr, X_vl, y_tr, y_vl = train_test_split(X_dev, y_dev, test_size=0.2, random_state=seed)
+        X_train, X_val, y_train, y_val = train_test_split(X_dev, y_dev, test_size=0.2, random_state=seed)
         # Prep split features
-        X_tr_tree = prepare_features(X_tr)
-        X_vl_tree = prepare_features(X_vl)
-        X_tr_lin = prepare_features(X_tr, for_linear=True)
-        X_vl_lin = prepare_features(X_vl, for_linear=True, reference_columns=X_tr_lin.columns)  # Use reference for val
-        # Note: Removed extra reindex line, now handled in prepare_features
+        X_tr_tree = prepare_features(X_train)
+        X_vl_tree = prepare_features(X_val)
+        X_tr_lin = prepare_features(X_train, for_linear=True)
+        X_vl_lin = prepare_features(X_val, for_linear=True, reference_columns=X_tr_lin.columns)
 
-        split_results = train_eval_single_split(models, X_tr_tree, X_vl_tree, X_tr_lin, X_vl_lin, y_tr, y_vl)
+        split_results = train_eval_single_split(models, X_tr_tree, X_vl_tree, X_tr_lin, X_vl_lin, y_train, y_val)
         for name, metrics in split_results.items():
             cv_results[name].append(metrics)
             cv_rmses[name].append(metrics['rmse'])
@@ -160,7 +154,7 @@ def train_evaluate_all_models(X, y, group_name, n_seeds=30):
 # Run analysis
 X_weekdays = weekdays[['hour', 'day_of_week', 'precipitation']]
 y_weekdays = weekdays['order_count']
-weekday_results = train_evaluate_all_models(X_weekdays, y_weekdays, "Weekdays")
+weekday_results = run_pipeline(X_weekdays, y_weekdays, "Weekdays")
 X_weekends = weekends[['hour', 'day_of_week', 'precipitation']]
 y_weekends = weekends['order_count']
-weekend_results = train_evaluate_all_models(X_weekends, y_weekends, "Weekends")
+weekend_results = run_pipeline(X_weekends, y_weekends, "Weekends")
