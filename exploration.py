@@ -2,6 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.stats as stats
+from itertools import product
 
 # Load the data
 df = pd.read_csv('orders_spring_2022.csv')
@@ -14,7 +15,7 @@ df['date'] = df['order_placed_at_utc'].dt.date
 df['hour'] = df['order_placed_at_utc'].dt.hour
 df['day_of_week'] = df['order_placed_at_utc'].dt.dayofweek      # 0 = Monday, 6 = Sunday
 df['is_weekend'] = df['day_of_week'].isin([5, 6]).astype(int)   # Saturday, Sunday
-df['has_rain'] = (df['precipitation'] > 0.4).astype(int)
+df['has_rain'] = (df['precipitation'] > 0).astype(int)
 
 # Group data together for each hour
 hourly = df.groupby(['date', 'hour']).agg({
@@ -29,6 +30,15 @@ hourly = df.groupby(['date', 'hour']).agg({
 # Rename the count column
 hourly.rename(columns={'order_placed_at_utc': 'order_count'}, inplace=True)
 
+
+# print("-" * 45)
+# print("---- HOW MANY UNIQUE venue_location_h3_index ----")
+# print("-" * 45)
+
+# # Assuming your DataFrame is df
+# num_unique = df['venue_location_h3_index'].nunique()
+# print("Number of unique h3 locations:", num_unique)
+# print("\n" * 4)
 
 
 
@@ -54,11 +64,12 @@ ax1.plot(weekday_no_rain['hour'], weekday_no_rain['avg_order_count'],
          marker='o', linewidth=2, label='No Rain', color='steelblue')
 ax1.plot(weekday_rain['hour'], weekday_rain['avg_order_count'],
          marker='s', linewidth=2, label='Rain', color='darkblue')
-ax1.set_xlabel('Hour of Day', fontsize=12)
-ax1.set_ylabel('Average Order Count', fontsize=12)
-ax1.set_title('Weekdays: Rain Impact', fontsize=14, fontweight='bold')
+ax1.set_xlabel('Hour of Day', fontsize=17)
+ax1.set_ylabel('Average Order Count', fontsize=17)
+ax1.set_title('Weekdays: Rain Impact', fontsize=19, fontweight='bold')
 ax1.set_xticks(range(0, 24))
-ax1.legend(fontsize=11)
+ax1.tick_params(axis='both', labelsize=12)
+ax1.legend(fontsize=14)
 ax1.grid(True, alpha=0.3)
 
 # Weekends: Rain vs No Rain
@@ -66,11 +77,12 @@ ax2.plot(weekend_no_rain['hour'], weekend_no_rain['avg_order_count'],
          marker='o', linewidth=2, label='No Rain', color='coral')
 ax2.plot(weekend_rain['hour'], weekend_rain['avg_order_count'],
          marker='s', linewidth=2, label='Rain', color='darkred')
-ax2.set_xlabel('Hour of Day', fontsize=12)
-ax2.set_ylabel('Average Order Count', fontsize=12)
-ax2.set_title('Weekends: Rain Impact', fontsize=14, fontweight='bold')
+ax2.set_xlabel('Hour of Day', fontsize=17)
+ax2.set_ylabel('Average Order Count', fontsize=17)
+ax2.set_title('Weekends: Rain Impact', fontsize=19, fontweight='bold')
 ax2.set_xticks(range(0, 24))
-ax2.legend(fontsize=11)
+ax2.tick_params(axis='both', labelsize=12)
+ax2.legend(fontsize=14)
 ax2.grid(True, alpha=0.3)
 
 plt.tight_layout()
@@ -81,7 +93,7 @@ plt.show()
 
 
 # # Prepare Labels and the Red-to-Green Gradient
-# days_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+# days_names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 # # Generate 7 colors from the RdYlGn colormap (0.0 is Red, 1.0 is Green)
 # colors_gradient = [plt.cm.RdYlGn(i/6) for i in range(7)]
 
@@ -92,9 +104,13 @@ plt.show()
 # plt.bar(days_names, [weekday_totals.loc[weekday_totals['day_of_week'] == i, 'order_count'].values[0] for i in range(7)],
 #         color=colors_gradient)
 
-# plt.title('Total Order Count (Monday to Sunday Gradient)', fontsize=14)
-# plt.xlabel('Day of the Week')
-# plt.ylabel('Total Orders')
+
+# plt.title('Total Order Count (Monday to Sunday)', fontsize=18)
+# plt.xlabel('Day of the Week', fontsize=16)
+# plt.ylabel('Total Orders', fontsize=16)
+
+# plt.xticks(fontsize=14)
+# plt.yticks(fontsize=14)
 # plt.grid(axis='y', linestyle='--', alpha=0.3)
 # plt.show()
 
@@ -120,27 +136,26 @@ plt.show()
 
 
 
+# Explore how different precipitation thresholds affect orders amount
 
-# # Explore how different precipitation thresholds affect orders amount
+# Define precipitation thresholds
+precip_thresholds = [0, 0.1, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
 
-# # Define precipitation thresholds
-# precip_thresholds = [0, 0.1, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+# Use a colormap from light to dark
+colors = plt.cm.coolwarm(np.linspace(0, 1, len(precip_thresholds)))
 
-# # Use a colormap from light to dark
-# colors = plt.cm.coolwarm(np.linspace(0, 1, len(precip_thresholds)))
+plt.figure(figsize=(10,6))
 
-# plt.figure(figsize=(10,6))
+for p, c in zip(precip_thresholds, colors):
+    filtered = hourly[hourly['precipitation'] > p].groupby('hour')['order_count'].mean().reset_index()
+    plt.plot(filtered['hour'], filtered['order_count'], label=f'precip > {p}', color=c)
 
-# for p, c in zip(precip_thresholds, colors):
-#     filtered = hourly[hourly['precipitation'] > p].groupby('hour')['order_count'].mean().reset_index()
-#     plt.plot(filtered['hour'], filtered['order_count'], label=f'precip > {p}', color=c)
-
-# plt.xlabel('Hour of Day')
-# plt.ylabel('Average Orders')
-# plt.title('Hourly Average Orders by Precipitation Level')
-# plt.legend()
-# plt.grid(True)
-# plt.show()
+plt.xlabel('Hour of Day')
+plt.ylabel('Average Orders')
+plt.title('Hourly Average Orders by Precipitation Level')
+plt.legend()
+plt.grid(True)
+plt.show()
 
 
 
@@ -228,9 +243,12 @@ plt.show()
 
 # # Check if poisson regression is suitable
 
-# from scipy import stats
-
 # # Check ratio for each group separately
+
+# print("-" * 45)
+# print("---- POISSON REGRESSION SUITABILITY CHECK ----")
+# print("-" * 45)
+
 # groups = {
 #     'Weekday': hourly[hourly['is_weekend'] == 0],
 #     'Weekend': hourly[hourly['is_weekend'] == 1]
@@ -259,6 +277,9 @@ plt.show()
 
 #     print(f"{hour:<6} {wd_ratio:<18.2f} {we_ratio:<18.2f}")
 
+# print("\n" * 4)
+
+
 
 
 
@@ -266,6 +287,10 @@ plt.show()
 
 
 # # --- DATA EXPLORATION: TIME TREND ANALYSIS ---
+
+# print("-" * 45)
+# print("---- TIME TREND ANALYSIS ----")
+# print("-" * 45)
 
 # # 1. Aggregate to Daily level to see the big picture
 # daily_orders = hourly.groupby('date')['order_count'].sum().reset_index()
@@ -366,3 +391,58 @@ plt.show()
 #     else:
 #         print("   -> There is a verified NEGATIVE declining trend.")
 # print("-" * 40)
+
+
+
+
+
+
+
+# ============= EXPLORATION FOR MISSING HOURS =============
+
+# After your groupby and rename
+hourly.rename(columns={'order_placed_at_utc': 'order_count'}, inplace=True)
+
+# Convert date to datetime for easier handling
+hourly['date'] = pd.to_datetime(hourly['date'])
+
+# Get date range from data
+min_date = hourly['date'].min()
+max_date = hourly['date'].max()
+
+# Create all possible date-hour combinations for hours 7-20
+all_dates = pd.date_range(start=min_date, end=max_date, freq='D')
+hours_7_20 = range(7, 21)  # 7 to 20 inclusive
+
+all_combinations = pd.DataFrame(list(product(all_dates, hours_7_20)),
+                                columns=['date', 'hour'])
+
+print(f"Expected rows (hours 7-20): {len(all_combinations)}")
+print(f"Actual rows in hourly data (all hours): {len(hourly)}")
+
+# Filter hourly to only 7-20
+hourly_7_20 = hourly[(hourly['hour'] >= 7) & (hourly['hour'] <= 20)].copy()
+print(f"Actual rows (hours 7-20 only): {len(hourly_7_20)}")
+
+# Merge to find missing
+merged = all_combinations.merge(hourly_7_20[['date', 'hour', 'order_count']],
+                                on=['date', 'hour'],
+                                how='left',
+                                indicator=True)
+
+missing = merged[merged['_merge'] == 'left_only']
+
+print(f"\n=== Missing hours (7-20) ===")
+print(f"Total missing: {len(missing)}")
+
+if len(missing) > 0:
+    print("\nMissing by hour:")
+    print(missing['hour'].value_counts().sort_index())
+
+    print("\nSpecific missing date-hours:")
+    print(missing[['date', 'hour']].sort_values(['date', 'hour']))
+
+    # Get day of week for missing hours
+    missing['day_of_week'] = missing['date'].dt.dayofweek
+    print("\nMissing by day of week (0=Mon, 6=Sun):")
+    print(missing['day_of_week'].value_counts().sort_index())

@@ -227,7 +227,7 @@ A good check before sending your task is to unzip the Zip archive into a new fol
 
 ## Data and EDA findings
     What data did you use?
-    Orders in pring
+    Orders in spring
 
     Key insights or findings from exploratory data analysis?
     Most orders occur at 9am and 15-16pm.
@@ -288,7 +288,9 @@ I chose for the simplicity trading possibly some accuracy and trading limitation
 
 # If you used AI tools during the application process, or when preparing the assignment, explain how and for what parts of the process?*
 
-I used AI to help me with syntax of pandas and matplotlib. For faster data exploration. Used AI to suggest me improvements to the data preprocessing for each model. Used AI to learn about different models, what they are doing under the hood. Used AI to help with data processing in various steps.
+I used AI to help me with syntax of pandas and matplotlib. Used AI to suggest me improvements to the data preprocessing for each model. Used AI to learn about different models, what they are doing under the hood. Used AI to help with data processing in various steps. In general used AI for sparring to see if I missed something.
+
+I basically made all the decisions and overall architecture. I questioned AI suggestions and given code, because it made wrong assumptions and changed code logic when not asked.
 
 
 
