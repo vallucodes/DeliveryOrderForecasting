@@ -7,7 +7,6 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 from sklearn.model_selection import train_test_split
 import numpy as np
 import pandas as pd
-from scipy import stats
 from itertools import product
 
 # Load and prepare data
@@ -39,7 +38,6 @@ hours_7_20 = range(7, 21)
 # Create all combinations for hours 7-20 only
 all_combinations = pd.DataFrame(list(product(all_dates, hours_7_20)),
                                 columns=['date', 'hour'])
-print(f"All Rows: {len(all_combinations)}")
 
 # Merge to fill missing hours
 hourly_complete = all_combinations.merge(hourly, on=['date', 'hour'], how='left')
@@ -51,13 +49,9 @@ hourly_complete['order_count'] = hourly_complete['order_count'].fillna(0).astype
 hourly_complete['day_of_week'] = hourly_complete['date'].dt.dayofweek
 hourly_complete['is_weekend'] = hourly_complete['day_of_week'].isin([5, 6]).astype(int)
 hourly_sorted = hourly_complete.sort_values(['date', 'hour']).reset_index(drop=True)
-print(f"Rows before filling: {len(hourly)}")
-print(f"Rows after filling missing hours: {len(hourly_sorted)}")
-print(f"Hours with 0 orders: {(hourly_sorted['order_count'] == 0).sum()}")
 
 # Drop rows where precipitation is NaN
 hourly_filtered = hourly_sorted.dropna(subset=['precipitation']).reset_index(drop=True)
-print(f"Rows after dropping NaN precipitation: {len(hourly_filtered)}")
 
 # Split into weekdays and weekends
 weekdays = hourly_filtered[hourly_filtered['is_weekend'] == 0].copy()
@@ -80,7 +74,7 @@ def prepare_features(X, for_linear=False, reference_columns=None):
         if reference_columns is not None:
             X_prep = X_prep.reindex(columns=reference_columns, fill_value=0)
         return X_prep
-    return X[['hour', 'day_of_week', 'precipitation']].values
+    return X[['hour', 'day_of_week', 'precipitation']]
 
 def train_eval_single_split(models, X_train_tree, X_test_tree, X_train_lin, X_test_lin, y_train, y_test):
     results = {}
@@ -138,18 +132,18 @@ def run_pipeline(X, y, group_name, n_seeds=30):
     }
     models = get_models(xgb_params)
 
-    # Step 1: Hold out final test set
-    X_dev, X_final, y_dev, y_final = train_test_split(X, y, test_size=0.2, shuffle=True, random_state=999)
+    # Split data into development and final evaluation sets
+    X_dev, X_test_final, y_dev, y_test_final = train_test_split(X, y, test_size=0.2, shuffle=True, random_state=999)
     print(f"\n{'='*80}\n{group_name} - Data Split\n{'='*80}")
-    print(f"Development set: {len(X_dev)} samples\nFinal test set: {len(X_final)} samples")
+    print(f"Development set: {len(X_dev)} samples\nFinal test set: {len(X_test_final)} samples")
 
     # Pre-encode full dev for efficiency
     X_dev_tree = prepare_features(X_dev)
     X_dev_lin = prepare_features(X_dev, for_linear=True)
-    X_final_tree = prepare_features(X_final)
-    X_final_lin = prepare_features(X_final, for_linear=True, reference_columns=X_dev_lin.columns)
+    X_final_tree = prepare_features(X_test_final)
+    X_final_lin = prepare_features(X_test_final, for_linear=True, reference_columns=X_dev_lin.columns)
 
-    # Step 2: MCCV on dev set
+    # MCCV on dev set
     print(f"\n{'='*80}\n{group_name} - Cross-validation with {n_seeds} splits\n{'='*80}")
     cv_results = {name: [] for name in models}
     cv_rmses = {name: [] for name in models}
@@ -164,7 +158,7 @@ def run_pipeline(X, y, group_name, n_seeds=30):
             cv_results[name].append(metrics)
             cv_rmses[name].append(metrics['rmse'])
 
-    # Step 3: Report CV summary and stats
+    # Report CV summary and stats
     summary = summarize_cv(cv_results)
     print(f"\n--- {group_name} Cross-Validation Results ---")
     print(f"{'Model':<25} {'Mean MAE':<12} {'Std MAE':<12} {'95% CI MAE':<20} {'Mean RMSE':<12} {'Std RMSE':<12} {'95% CI RMSE':<20}")
@@ -174,9 +168,9 @@ def run_pipeline(X, y, group_name, n_seeds=30):
         ci_rmse_str = f"[{stats['ci_rmse'][0]:.2f}, {stats['ci_rmse'][1]:.2f}]"
         print(f"{name:<25} {stats['mean_mae']:<12.2f} {stats['std_mae']:<12.2f} {ci_mae_str:<20} {stats['mean_rmse']:<12.2f} {stats['std_rmse']:<12.2f} {ci_rmse_str:<20}")
 
-    # Step 4: Final eval on held-out
+    # Final eval on test data
     print(f"\n{'='*80}\n{group_name} - Models run on test data\n{'='*80}")
-    final_results = final_eval(models, X_dev_tree, X_final_tree, X_dev_lin, X_final_lin, y_dev, y_final)
+    final_results = final_eval(models, X_dev_tree, X_final_tree, X_dev_lin, X_final_lin, y_dev, y_test_final)
     print(f"{'Model':<25} {'MAE':<10} {'RMSE':<10} {'MAPE':<10}")
     print("-" * 60)
     for name, metrics in final_results.items():
