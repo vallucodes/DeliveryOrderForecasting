@@ -11,7 +11,9 @@ pip install -r requirements.txt
 ```bash
 python3 data_exploration.py
 
+# Final production model
 python3 model.py
 
+# Contains Monte Carlo Cross-Validation run to compare different models
 python3 models_comparison.py
 ```
