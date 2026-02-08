@@ -1,4 +1,4 @@
-## Dependencies and venv
+## Dependencies and Virtual Environment
 
 ```bash
 python3 -m venv venv
@@ -11,17 +11,9 @@ pip install -r requirements.txt
 ```bash
 python3 data_exploration.py
 
+# Final production model
 python3 model.py
 
+# Contains Monte Carlo Cross-Validation run to compare different models
 python3 models_comparison.py
 ```
-
-
-pip install statsmodels
-
-pip install matplotlib
-
-pip install scikit-learn
-pip intsall xgboost
-pip install lightgbm
-pip install pandas
