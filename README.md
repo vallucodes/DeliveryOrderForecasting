@@ -1,4 +1,4 @@
-## Dependencies and venv
+## Dependencies and Virtual Environment
 
 ```bash
 python3 -m venv venv
