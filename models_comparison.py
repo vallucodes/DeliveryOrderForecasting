@@ -9,6 +9,9 @@ import numpy as np
 import pandas as pd
 from itertools import product
 
+HOUR_START = 7
+HOUR_END = 20
+
 # Load and prepare data
 df = pd.read_csv('orders_spring_2022.csv')
 df['order_placed_at_utc'] = pd.to_datetime(df['order_placed_at_utc'])
@@ -26,23 +29,23 @@ hourly = df.groupby(['date', 'hour']).agg({
 }).reset_index()
 hourly.rename(columns={'order_placed_at_utc': 'order_count'}, inplace=True)
 
-# Convert date to datetime for complete range creation
+# Convert date to datetime
 hourly['date'] = pd.to_datetime(hourly['date'])
 
 # Create complete date-hour range
 min_date = hourly['date'].min()
 max_date = hourly['date'].max()
 all_dates = pd.date_range(start=min_date, end=max_date, freq='D')
-hours_7_20 = range(7, 21)
+hours_range = range(HOUR_START, HOUR_END + 1)
 
-# Create all combinations for hours 7-20 only
-all_combinations = pd.DataFrame(list(product(all_dates, hours_7_20)),
+# Create all combinations date-hours
+all_combinations = pd.DataFrame(list(product(all_dates, hours_range)),
                                 columns=['date', 'hour'])
 
 # Merge to fill missing hours
 hourly_complete = all_combinations.merge(hourly, on=['date', 'hour'], how='left')
 
-# Fill the missing order_count with 0
+# Fill missing order_count with 0
 hourly_complete['order_count'] = hourly_complete['order_count'].fillna(0).astype(int)
 
 # Derive day_of_week and is_weekend from date for any missing rows
@@ -137,7 +140,6 @@ def run_pipeline(X, y, group_name, n_seeds=30):
     print(f"\n{'='*80}\n{group_name} - Data Split\n{'='*80}")
     print(f"Development set: {len(X_dev)} samples\nFinal test set: {len(X_test_final)} samples")
 
-    # Pre-encode full dev for efficiency
     X_dev_tree = prepare_features(X_dev)
     X_dev_lin = prepare_features(X_dev, for_linear=True)
     X_final_tree = prepare_features(X_test_final)

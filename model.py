@@ -27,7 +27,7 @@ hourly.rename(columns={'order_placed_at_utc': 'order_count'}, inplace=True)
 # Convert date to datetime
 hourly['date'] = pd.to_datetime(hourly['date'])
 
-# Create full date and hour range
+# Create complete date-hour range
 min_date = hourly['date'].min()
 max_date = hourly['date'].max()
 all_dates = pd.date_range(start=min_date, end=max_date, freq='D')

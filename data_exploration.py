@@ -13,18 +13,18 @@ df['order_placed_at_utc'] = pd.to_datetime(df['order_placed_at_utc'])
 # Extract time and precipitation features
 df['date'] = df['order_placed_at_utc'].dt.date
 df['hour'] = df['order_placed_at_utc'].dt.hour
-df['day_of_week'] = df['order_placed_at_utc'].dt.dayofweek      # 0 = Monday, 6 = Sunday
-df['is_weekend'] = df['day_of_week'].isin([5, 6]).astype(int)   # Saturday, Sunday
+df['day_of_week'] = df['order_placed_at_utc'].dt.dayofweek
+df['is_weekend'] = df['day_of_week'].isin([5, 6]).astype(int)
 df['has_rain'] = (df['precipitation'] > 0).astype(int)
 
 # Group data together for each hour
 hourly = df.groupby(['date', 'hour']).agg({
-    'order_placed_at_utc': 'count',             # This counts orders per hour
-    'precipitation': 'first',                   # Assuming same precipitation for the whole hour
-    'courier_supply_index': 'mean',             # Average courier supply in that hour
-    'day_of_week': 'first',                     # Keep day of week
-    'is_weekend': 'first',                      # Weekend flag
-    'has_rain': 'first'                         # Rain forecast
+    'order_placed_at_utc': 'count',
+    'precipitation': 'first',
+    'courier_supply_index': 'mean',
+    'day_of_week': 'first',
+    'is_weekend': 'first',
+    'has_rain': 'first'
 }).reset_index()
 
 # Rename the count column
@@ -412,7 +412,7 @@ max_date = hourly['date'].max()
 
 # Create all possible date-hour combinations for hours 7-20
 all_dates = pd.date_range(start=min_date, end=max_date, freq='D')
-hours_7_20 = range(7, 21)  # 7 to 20 inclusive
+hours_7_20 = range(7, 21)
 
 all_combinations = pd.DataFrame(list(product(all_dates, hours_7_20)),
                                 columns=['date', 'hour'])
