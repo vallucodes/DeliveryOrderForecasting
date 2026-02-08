@@ -15,13 +15,3 @@ python3 model.py
 
 python3 models_comparison.py
 ```
-
-
-pip install statsmodels
-
-pip install matplotlib
-
-pip install scikit-learn
-pip intsall xgboost
-pip install lightgbm
-pip install pandas
