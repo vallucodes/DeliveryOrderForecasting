@@ -21,6 +21,22 @@ This forecasting system supports critical operational decisions:
 
 ---
 
+## 📝 Model Card Summary
+
+| Attribute | Value |
+|-----------|-------|
+| Model Type | Generalized Additive Model (GAM) |
+| Prediction Target | Hourly order count |
+| Geographic Scope | Helsinki metropolitan area |
+| Temporal Resolution | 1 hour |
+| Training Data | Spring 2022 orders (947 samples) |
+| Training Split | Weekdays: 701 samples, Weekends: 246 samples |
+| Primary Metric | MAE ≈ 4.7 orders/hour |
+| Update Frequency | Manual (requires retraining) |
+| Operational Hours | 7:00-20:00 |
+
+---
+
 ## 📁 Data
 
 **Source**: `orders_spring_2022.csv`
@@ -215,21 +231,5 @@ Model usefulness depends on stakeholder trust:
 - Operations managers rely on stable, interpretable predictions
 - Couriers respond to reliable incentive systems
 - Accurate baselines enable confident decision-making
-
----
-
-## 📝 Model Card Summary
-
-| Attribute | Value |
-|-----------|-------|
-| Model Type | Generalized Additive Model (GAM) |
-| Prediction Target | Hourly order count |
-| Geographic Scope | Helsinki metropolitan area |
-| Temporal Resolution | 1 hour |
-| Training Data | Spring 2022 orders (947 samples) |
-| Training Split | Weekdays: 701 samples, Weekends: 246 samples |
-| Primary Metric | MAE ≈ 4.7 orders/hour |
-| Update Frequency | Manual (requires retraining) |
-| Operational Hours | 7:00-20:00 |
 
 ---
