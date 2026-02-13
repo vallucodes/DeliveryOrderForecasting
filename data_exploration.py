@@ -150,10 +150,12 @@ for p, c in zip(precip_thresholds, colors):
     filtered = hourly[hourly['precipitation'] > p].groupby('hour')['order_count'].mean().reset_index()
     plt.plot(filtered['hour'], filtered['order_count'], label=f'precip > {p}', color=c)
 
-plt.xlabel('Hour of Day')
-plt.ylabel('Average Orders')
-plt.title('Hourly Average Orders by Precipitation Level')
-plt.legend()
+plt.xlabel('Hour of Day', fontsize=17)
+plt.ylabel('Average Orders', fontsize=17)
+plt.title('Hourly Average Orders by Precipitation Level', fontsize=19)
+plt.legend(fontsize=14)
+plt.xticks(fontsize=14)
+plt.yticks(fontsize=14)
 plt.grid(True)
 plt.show()
 
@@ -331,10 +333,12 @@ plt.plot(daily_orders['date'], daily_orders['7_day_avg'],
 plt.plot(daily_orders['date'], trend_line,
          color='red', linestyle='--', linewidth=2, label=f'Linear Trend (Slope={slope:.2f})')
 
-plt.title('Order Volume Over Time (Spring 2022)', fontsize=14)
-plt.xlabel('Date')
-plt.ylabel('Total Orders')
-plt.legend()
+plt.title('Order Volume Over Time (Spring 2022)', fontsize=19)
+plt.xlabel('Date', fontsize=17)
+plt.ylabel('Total Orders', fontsize=17)
+plt.legend(fontsize=14)
+plt.xticks(fontsize=14)
+plt.yticks(fontsize=14)
 plt.grid(True, linestyle=':', alpha=0.6)
 plt.tight_layout()
 plt.show()
