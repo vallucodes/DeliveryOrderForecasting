@@ -8,6 +8,9 @@ from sklearn.model_selection import train_test_split
 import numpy as np
 import pandas as pd
 from itertools import product
+import matplotlib.pyplot as plt
+from sklearn.tree import plot_tree as plot_rf_tree
+from xgboost import plot_tree as plot_xgb_tree
 
 HOUR_START = 7
 HOUR_END = 20
@@ -117,11 +120,31 @@ def final_eval(models, X_dev_tree, X_final_tree, X_dev_lin, X_final_lin, y_dev, 
         else:
             model.fit(X_dev_tree, y_dev)
             preds = model.predict(X_final_tree)
+
         rmse = np.sqrt(mean_squared_error(y_final, preds))
         mae = mean_absolute_error(y_final, preds)
         mape = np.mean(np.abs((y_final - preds) / (y_final + 1e-10))) * 100
-        final_results[name] = {'rmse': rmse, 'mae': mae, 'mape': mape}
+        # Store both the metrics AND the trained model
+        final_results[name] = {'metrics': {'rmse': rmse, 'mae': mae, 'mape': mape}, 'model': model}
     return final_results
+
+def visualize_trees(final_results, group_name):
+    # --- XGBoost ---
+    print(f"\nVisualizing first tree for XGBoost ({group_name})...")
+    plot_xgb_tree(final_results['XGBoost']['model'], num_trees=0)  # 0 = first tree
+    plt.title(f"XGBoost First Tree - {group_name}")
+    plt.show()
+
+    # --- Random Forest ---
+    print(f"Visualizing first tree for Random Forest ({group_name})...")
+    plot_rf_tree(
+        final_results['Random Forest']['model'].estimators_[0],  # first tree
+        feature_names=['hour', 'day_of_week', 'precipitation'],
+        max_depth=2,  # readable depth
+        filled=True
+    )
+    plt.title(f"Random Forest First Tree - {group_name}")
+    plt.show()
 
 def run_pipeline(X, y, group_name, n_seeds=30):
     if len(X) == 0:
@@ -175,8 +198,11 @@ def run_pipeline(X, y, group_name, n_seeds=30):
     final_results = final_eval(models, X_dev_tree, X_final_tree, X_dev_lin, X_final_lin, y_dev, y_test_final)
     print(f"{'Model':<25} {'MAE':<10} {'RMSE':<10} {'MAPE':<10}")
     print("-" * 60)
-    for name, metrics in final_results.items():
-        print(f"{name:<25} {metrics['mae']:<10.2f} {metrics['rmse']:<10.2f} {metrics['mape']:<10.2f}")
+    for name, data in final_results.items():
+        m = data['metrics']
+        print(f"{name:<25} {m['mae']:<10.2f} {m['rmse']:<10.2f} {m['mape']:<10.2f}")
+
+    # visualize_trees(final_results, group_name)
 
     return cv_results
 
